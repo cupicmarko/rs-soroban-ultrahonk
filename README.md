@@ -58,17 +58,17 @@ Docker is required to run the Soroban local network.
   sudo systemctl enable --now docker
   sudo usermod -aG docker $USER
   ```
-- **Arch Linux**:
-  ```bash
-  sudo pacman -S docker
-  sudo systemctl enable --now docker
-  sudo usermod -aG docker $USER
-  ```
+### 5. Node.js & npm
+
+Node.js is used for the contract invocation helper script.
+
+- Install from [nodejs.org](https://nodejs.org/) or via your package manager.
+- Recommended version: `v18+`
 
 
 ---
 
-## Development & Redeployment
+### Development & Redeployment
 
 If you modify the Noir circuits or the Rust contract, you can rebuild and redeploy everything in one command:
 
@@ -80,6 +80,17 @@ This script handles:
 1. Re-compiling Noir circuits and generating a new Verification Key (VK).
 2. Re-building the Soroban Rust contract.
 3. Deploying a new contract instance with the updated VK.
+4. **Saving the new Contract ID** to `.last_contract_id`.
+
+### Verification
+
+After redeploying, you can run the verification test without restarting Docker:
+
+```bash
+./scripts/verify.sh
+```
+
+This script uses the TypeScript helper in `scripts/invoke_ultrahonk` to submit a ZK proof to your deployed contract and measure the resulting costs.
 
 ---
 

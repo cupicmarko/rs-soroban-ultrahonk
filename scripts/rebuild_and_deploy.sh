@@ -32,4 +32,6 @@ echo "✅ Deployment successful!"
 echo "------------------------------------------------"
 echo "$DEPLOY_OUTPUT" | grep -v "Signing transaction" | grep -v "Sending transaction" | grep -v "Uploading contract" | grep -v "Simulating transaction"
 echo "------------------------------------------------"
-echo "New Contract ID: $(echo "$DEPLOY_OUTPUT" | tail -n 1 | tr -d '[:space:')"
+CONTRACT_ID=$(echo "$DEPLOY_OUTPUT" | tail -n 1 | tr -d '[:space:]')
+echo "New Contract ID: $CONTRACT_ID"
+echo "$CONTRACT_ID" > .last_contract_id
