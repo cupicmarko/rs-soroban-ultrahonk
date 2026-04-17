@@ -2,12 +2,91 @@
 
 Soroban contract wrapper around the Noir(UltraHonk) verifier. The VK is set at deploy time; proofs are verified with `public_inputs` and `proof`.
 
-## Quickstart (localnet)
+## Requirements
+
+To build and deploy this project, you need the following tools installed:
+
+### 1. Rust and WASM target
+
+Install [Rust](https://www.rust-lang.org/tools/install) via `rustup`:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup target add wasm32v1-none
+```
+
+### 2. Stellar CLI
+
+Install the `stellar` CLI using `cargo`:
+
+```bash
+cargo install --locked stellar-cli
+```
+
+### 3. Noir and Barretenberg
+
+Install `nargo` (Noir) and `bb` (Barretenberg). The project is optimized for Noir version `1.0.0-beta.9`.
+
+```bash
+# Install noirup
+curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+# Install specific version
+noirup -v 1.0.0-beta.9
+
+# Install barretenberg (bb)
+# Follow the instructions in tests/build_circuits.sh for manual installation
+# or simply run the script to handle it automatically.
+```
+
+### 4. Docker
+
+Docker is required to run the Soroban local network.
+
+- **Windows / macOS**: Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+- **Ubuntu**: 
+  ```bash
+  sudo apt update && sudo apt install docker.io
+  sudo usermod -aG docker $USER # Logout and back in
+  ```
+- **Fedora / OpenSUSE**: 
+  ```bash
+  # Fedora
+  sudo dnf install moby-engine docker-compose
+  # OpenSUSE
+  sudo zypper install docker docker-compose
+  
+  sudo systemctl enable --now docker
+  sudo usermod -aG docker $USER
+  ```
+- **Arch Linux**:
+  ```bash
+  sudo pacman -S docker
+  sudo systemctl enable --now docker
+  sudo usermod -aG docker $USER
+  ```
+
+
+---
+
+## Development & Redeployment
+
+If you modify the Noir circuits or the Rust contract, you can rebuild and redeploy everything in one command:
+
+```bash
+./scripts/rebuild_and_deploy.sh
+```
+
+This script handles:
+1. Re-compiling Noir circuits and generating a new Verification Key (VK).
+2. Re-building the Soroban Rust contract.
+3. Deploying a new contract instance with the updated VK.
+
+---
+
+## Invoke verify_proof
 
 Prereqs:
-- `stellar` CLI (stellar-cli)
-- Rust + `wasm32v1-none` target
-- Docker (for localnet)
+- See [Requirements](#requirements) above.
 
 ```bash
 # 1) Start localnet
@@ -19,7 +98,7 @@ stellar network add local \
   --network-passphrase "Standalone Network ; February 2017"
 stellar network use local
 stellar network health --output json
-stellar keys generate --global alice
+stellar keys generate alice
 stellar keys fund alice --network local
 stellar keys address alice
 

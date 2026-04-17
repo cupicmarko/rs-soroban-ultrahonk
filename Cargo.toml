@@ -17,6 +17,7 @@ soroban-env-host = { git = "https://github.com/stellar/rs-soroban-env", rev = "c
 
 [profile.release]
 opt-level = "z"
+overflow-checks = true
 lto = true
 codegen-units = 1
 panic = "abort"
