@@ -17,7 +17,7 @@ rustup target add wasm32v1-none >/dev/null 2>&1 || true
 echo "► Building Noir circuits..."
 bash tests/build_circuits.sh
 
-echo "► Building Soroban contract..."
+echo "► Building Soroban contracts (workspace)..."
 stellar contract build
 
 echo "► Deploying contract to network: $NETWORK using source: $SOURCE..."

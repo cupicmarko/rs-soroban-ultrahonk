@@ -48,19 +48,37 @@ cd "$REPO_ROOT"
 install_nargo
 install_bb
 
-for dir in tests/* ; do
-  [ -d "$dir" ] || continue
-  [ -f "$dir/Nargo.toml" ] || continue
+build_circuit() {
+  local dir="$1"
+  
+  # Extract name from Nargo.toml
+  local name=$(grep -E '^name\s*=\s*"' "$dir/Nargo.toml" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+  if [[ -z "$name" ]]; then
+    name=$(basename "$dir")
+    if [[ "$name" == "circuit" ]]; then
+      name=$(basename $(dirname "$dir"))
+    fi
+  fi
 
-  name=$(basename "$dir")
-  echo "► building $name"
+  echo "► building $name in $dir"
   pushd "$dir" >/dev/null
 
   [ -f Prover.toml ] || nargo check --overwrite
   nargo execute
 
-  json="target/${name}.json"
-  gz="target/${name}.gz"
+  # Ensure target exists
+  mkdir -p target
+
+  local json="target/${name}.json"
+  # If the json doesn't exist with the project name, try the directory name or look for any json in target
+  if [[ ! -f "$json" ]]; then
+    json=$(ls target/*.json | head -n 1)
+  fi
+
+  local gz="target/${name}.gz"
+  if [[ ! -f "$gz" ]]; then
+    gz=$(ls target/*.gz | head -n 1)
+  fi
 
   bb prove -b "$json" -w "$gz" -o target \
     --scheme ultra_honk --oracle_hash keccak --output_format bytes_and_fields
@@ -75,4 +93,25 @@ for dir in tests/* ; do
   fi
 
   popd >/dev/null
+}
+
+# Build circuits in tests/
+for dir in tests/* ; do
+  [ -d "$dir" ] || continue
+  [ -f "$dir/Nargo.toml" ] || continue
+  build_circuit "$dir"
+done
+
+# Build circuits in contracts/
+for dir in contracts/*/circuit ; do
+  [ -d "$dir" ] || continue
+  [ -f "$dir/Nargo.toml" ] || continue
+  build_circuit "$dir"
+done
+
+# Build circuits in packages/
+for dir in packages/*/circuits/* ; do
+  [ -d "$dir" ] || continue
+  [ -f "$dir/Nargo.toml" ] || continue
+  build_circuit "$dir"
 done
