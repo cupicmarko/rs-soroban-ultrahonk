@@ -85,11 +85,12 @@ pub fn load_proof(proof_bytes: &Bytes) -> Proof {
     // 5) sumcheck_univariates
     let mut sumcheck_univariates =
         [[Fr::zero(); BATCHED_RELATION_PARTIAL_LENGTH]; CONST_PROOF_SIZE_LOG_N];
-    for r in 0..CONST_PROOF_SIZE_LOG_N {
-        for i in 0..BATCHED_RELATION_PARTIAL_LENGTH {
-            sumcheck_univariates[r][i] = bytes_to_fr(proof_bytes, &mut boundary);
-        }
-    }
+
+    sumcheck_univariates.iter_mut().for_each(|row| {
+        row.iter_mut().for_each(|col| {
+            *col = bytes_to_fr(proof_bytes, &mut boundary);
+        });
+    });
 
     // 6) sumcheck_evaluations
     let sumcheck_evaluations: [Fr; NUMBER_OF_ENTITIES] =

@@ -5,6 +5,7 @@
 
 use crate::field::Fr;
 use crate::types::{RelationParameters, Wire, NUMBER_OF_SUBRELATIONS};
+use core::str::FromStr;
 
 #[cfg(feature = "std")]
 macro_rules! println {
@@ -13,16 +14,16 @@ macro_rules! println {
 
 /// Precomputed NEG_HALF = (p - 1)/2 in BN254 scalar field.
 fn neg_half() -> Fr {
-    Fr::from_str("0x183227397098d014dc2822db40c0ac2e9419f4243cdcb848a1f0fac9f8000000")
+    Fr::from_str("0x183227397098d014dc2822db40c0ac2e9419f4243cdcb848a1f0fac9f8000000").unwrap()
 }
 
 /// Internal matrix diagonal values for Poseidon hash
 fn internal_matrix_diagonal() -> [Fr; 4] {
     [
-        Fr::from_str("0x10dc6e9c006ea38b04b1e03b4bd9490c0d03f98929ca1d7fb56821fd19d3b6e7"),
-        Fr::from_str("0x0c28145b6a44df3e0149b3d0a30b3bb599df9756d4dd9b84a86b38cfb45a740b"),
-        Fr::from_str("0x00544b8338791518b2c7645a50392798b21f75bb60e3596170067d00141cac15"),
-        Fr::from_str("0x222c01175718386f2e2e82eb122789e352e105a3b8fa852613bc534433ee428b"),
+        Fr::from_str("0x10dc6e9c006ea38b04b1e03b4bd9490c0d03f98929ca1d7fb56821fd19d3b6e7").unwrap(),
+        Fr::from_str("0x0c28145b6a44df3e0149b3d0a30b3bb599df9756d4dd9b84a86b38cfb45a740b").unwrap(),
+        Fr::from_str("0x00544b8338791518b2c7645a50392798b21f75bb60e3596170067d00141cac15").unwrap(),
+        Fr::from_str("0x222c01175718386f2e2e82eb122789e352e105a3b8fa852613bc534433ee428b").unwrap(),
     ]
 }
 
@@ -217,7 +218,7 @@ fn accumulate_auxillary_relation(
     domain_sep: Fr,
 ) {
     fn limb_size() -> Fr {
-        Fr::from_str("0x100000000000000000")
+        Fr::from_str("0x100000000000000000").unwrap()
     }
     fn sublimb_shift() -> Fr {
         Fr::from_u64(1 << 14)
@@ -430,6 +431,5 @@ pub fn accumulate_relation_evaluations(
         pow_partial_eval,
     );
 
-    let accumulator = scale_and_batch_subrelations(&evaluations, alphas);
-    accumulator
+    scale_and_batch_subrelations(&evaluations, alphas)
 }

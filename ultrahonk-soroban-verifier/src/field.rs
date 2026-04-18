@@ -6,6 +6,7 @@ use hex;
 
 #[cfg(not(feature = "std"))]
 use alloc::{borrow::ToOwned, string::String};
+use core::str::FromStr;
 
 #[inline(always)]
 fn normalize_hex(s: &str) -> String {
@@ -23,20 +24,24 @@ fn normalize_hex(s: &str) -> String {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Fr(pub ArkFr);
 
-impl Fr {
-    /// Construct from u64.
-    pub fn from_u64(x: u64) -> Self {
-        Fr(ArkFr::from(x))
-    }
+impl FromStr for Fr {
+    type Err = ();
 
     /// Construct from hex string (with or without 0x prefix).
     /// Normalize to even digits before `hex::decode` so OddLength exception won't occur.
-    pub fn from_str(s: &str) -> Self {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = hex::decode(normalize_hex(s)).expect("hex decode failed");
         let mut padded = [0u8; 32];
         let offset = 32 - bytes.len();
         padded[offset..].copy_from_slice(&bytes);
-        Self::from_bytes(&padded)
+        Ok(Self::from_bytes(&padded))
+    }
+}
+
+impl Fr {
+    /// Construct from u64.
+    pub fn from_u64(x: u64) -> Self {
+        Fr(ArkFr::from(x))
     }
 
     /// Construct from a 32-byte big-endian array.
