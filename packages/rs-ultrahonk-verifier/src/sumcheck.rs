@@ -8,6 +8,38 @@ use crate::{
 };
 use crate::field::Field;
 
+/// Distinguish which sumcheck `u(0)+u(1)=target` check failed (log_n <= 28).
+const SUMCHECK_ROUND_FAILED: [&str; 28] = [
+    "sumcheck round 0",
+    "sumcheck round 1",
+    "sumcheck round 2",
+    "sumcheck round 3",
+    "sumcheck round 4",
+    "sumcheck round 5",
+    "sumcheck round 6",
+    "sumcheck round 7",
+    "sumcheck round 8",
+    "sumcheck round 9",
+    "sumcheck round 10",
+    "sumcheck round 11",
+    "sumcheck round 12",
+    "sumcheck round 13",
+    "sumcheck round 14",
+    "sumcheck round 15",
+    "sumcheck round 16",
+    "sumcheck round 17",
+    "sumcheck round 18",
+    "sumcheck round 19",
+    "sumcheck round 20",
+    "sumcheck round 21",
+    "sumcheck round 22",
+    "sumcheck round 23",
+    "sumcheck round 24",
+    "sumcheck round 25",
+    "sumcheck round 26",
+    "sumcheck round 27",
+];
+
 const BARY_BYTES: [[u8; 32]; BATCHED_RELATION_PARTIAL_LENGTH] = [
     [
         0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
@@ -115,8 +147,8 @@ pub fn verify_sumcheck(
     for round in 0..log_n {
         let round_univariate = &proof.sumcheck_univariates[round];
 
-        if !check_sum(round_univariate, round_target) {
-            return Err("round failed");
+        if !check_sum(round_univariate, round_target.clone()) {
+            return Err(SUMCHECK_ROUND_FAILED[round.min(SUMCHECK_ROUND_FAILED.len() - 1)]);
         }
 
         let round_challenge = tp.sumcheck_u_challenges[round].clone();

@@ -1,7 +1,5 @@
 //! Fiat–Shamir transcript for UltraHonk
 
-use core::array::repeat;
-use core::iter::repeat_n;
 use crate::trace;
 use crate::{
     field::Fr,
@@ -11,7 +9,7 @@ use crate::{
     },
     utils::coord_to_halves_be,
 };
-use soroban_sdk::{Bytes, BytesN, Env, Vec};
+use soroban_sdk::{Bytes, Env};
 use crate::field::Field;
 
 fn push_point(buf: &mut Bytes, pt: &G1Point) {
@@ -24,15 +22,18 @@ fn push_point(buf: &mut Bytes, pt: &G1Point) {
     buf.extend_from_slice(&y_hi);
 }
 
+/// Split a transcript challenge into two field elements (Barretenberg layout): each 128-bit limb
+/// is embedded in the **least significant** 16 bytes of a 32-byte big-endian scalar.
 fn split_challenge(env: &Env, challenge: Fr) -> (Fr, Fr) {
-    let challenge_bytes = challenge.to_bytes();
+    let challenge_bytes = challenge.to_bytes().to_array();
     let mut low_bytes = [0u8; 32];
+    low_bytes[16..].copy_from_slice(&challenge_bytes[16..]);
     let mut high_bytes = [0u8; 32];
-
-    challenge_bytes.iter().enumerate().take(16).for_each(|(i, v)| low_bytes[i] = v);
-    challenge_bytes.iter().enumerate().skip(16).for_each(|(i, v)| high_bytes[i] = v);
-
-    (Fr::from_array(env, &low_bytes), Fr::from_array(env, &high_bytes))
+    high_bytes[16..].copy_from_slice(&challenge_bytes[..16]);
+    (
+        Fr::from_array(env, &low_bytes),
+        Fr::from_array(env, &high_bytes),
+    )
 }
 
 #[inline(always)]
@@ -68,8 +69,8 @@ fn generate_eta_challenge(
 
     let previous_challenge = hash_to_fr(env, &data);
     let (eta, eta_two) = split_challenge(env, previous_challenge.clone());
-    let prev_bytes = previous_challenge.to_bytes();
-    let previous_challenge = hash_to_fr(env, &prev_bytes.to_bytes());
+    let prev_bytes = Bytes::from_array(env, &previous_challenge.to_bytes().to_array());
+    let previous_challenge = hash_to_fr(env, &prev_bytes);
     let (eta_three, _) = split_challenge(env, previous_challenge.clone());
 
     (eta, eta_two, eta_three, previous_challenge)

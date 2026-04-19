@@ -20,16 +20,12 @@ pub enum VerifyError {
 }
 
 pub struct UltraHonkVerifier {
-    env: Env,
     vk: crate::types::VerificationKey,
 }
 
 impl UltraHonkVerifier {
-    pub fn new_with_vk(env: &Env, vk: crate::types::VerificationKey) -> Self {
-        Self {
-            env: env.clone(),
-            vk,
-        }
+    pub fn new_with_vk(_env: &Env, vk: crate::types::VerificationKey) -> Self {
+        Self { vk }
     }
 
     pub fn new(env: &Env, vk_bytes: &Bytes) -> Result<Self, VerifyError> {
@@ -73,7 +69,7 @@ impl UltraHonkVerifier {
         let pis_total = provided + PAIRING_POINTS_SIZE as u64;
         let pub_inputs_offset = 1;
         let mut t = generate_transcript(
-            &self.env,
+            env,
             &proof,
             public_inputs_bytes,
             self.vk.circuit_size,
@@ -96,7 +92,7 @@ impl UltraHonkVerifier {
         verify_sumcheck(env, &proof, &t, &self.vk).map_err(VerifyError::SumcheckFailed)?;
 
         // 6) Shplonk
-        verify_shplemini(&self.env, &proof, &self.vk, &t).map_err(VerifyError::ShplonkFailed)?;
+        verify_shplemini(env, &proof, &self.vk, &t).map_err(VerifyError::ShplonkFailed)?;
 
         Ok(())
     }
