@@ -20,7 +20,7 @@ macro_rules! trace {
 #[inline(always)]
 pub fn fr_to_hex(fr: &Fr) -> String {
     let mut s = String::from("0x");
-    s.push_str(&hex::encode(fr.to_bytes()));
+    s.push_str(&hex::encode(fr.to_bytes().to_array()));
     s
 }
 

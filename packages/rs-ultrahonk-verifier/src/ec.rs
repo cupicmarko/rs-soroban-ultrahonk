@@ -1,8 +1,5 @@
 use crate::{field::Fr, types::G1Point};
-use soroban_sdk::{
-    crypto::bn254::{Bn254G1Affine, Bn254G2Affine, Fr as Bn254Fr},
-    BytesN, Env, Vec,
-};
+use soroban_sdk::{crypto::bn254::{Bn254G1Affine, Bn254G2Affine}, BytesN, Env, Vec, U256};
 
 const RHS_G2_BYTES: [u8; 128] = [
     0x19, 0x8e, 0x93, 0x93, 0x92, 0x0d, 0x48, 0x3a, 0x72, 0x60, 0xbf, 0xb7, 0x31, 0xfb, 0x5d, 0x25,
@@ -27,8 +24,8 @@ const LHS_G2_BYTES: [u8; 128] = [
 ];
 
 #[inline(always)]
-fn fr_to_bn254(env: &Env, fr: &Fr) -> Bn254Fr {
-    Bn254Fr::from_bytes(BytesN::from_array(env, &fr.to_bytes()))
+fn fr_to_bn254(env: &Env, fr: &Fr) -> Fr {
+    Fr::from_bytes(BytesN::from_array(env, &fr.to_bytes().to_array()))
 }
 
 #[inline(always)]
@@ -55,7 +52,7 @@ pub fn g1_msm(env: &Env, coms: &[G1Point], scalars: &[Fr]) -> Result<Bn254G1Affi
     let bn = env.crypto().bn254();
     let mut acc = Bn254G1Affine::from_array(env, &G1Point::infinity().to_bytes());
     for (c, s) in coms.iter().zip(scalars.iter()) {
-        if s.is_zero() {
+        if s.clone() == Fr::from_u256(U256::from_u32(env, 0u32)) {
             continue;
         }
         let p = g1_from_point(env, c);

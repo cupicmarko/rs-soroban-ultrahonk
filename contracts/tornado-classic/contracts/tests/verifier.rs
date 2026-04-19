@@ -31,7 +31,7 @@ fn verify_proof_with_constructor_vk() {
 
     env.as_contract(&verifier_id, || {
         UltraHonkVerifierContract::verify_proof(
-            env.clone(),
+            &env,
             public_inputs.clone(),
             proof_bytes.clone(),
         )

@@ -1,18 +1,13 @@
 //! Utilities for loading Proof and VerificationKey, plus byte↔field/point conversion.
 
-use crate::field::Fr;
+use crate::field::{Field, Fr};
 use crate::types::{
     G1Point, Proof, VerificationKey, BATCHED_RELATION_PARTIAL_LENGTH, CONST_PROOF_SIZE_LOG_N,
     NUMBER_OF_ENTITIES, PAIRING_POINTS_SIZE,
 };
 use crate::PROOF_BYTES;
 use core::array;
-use soroban_sdk::Bytes;
-
-/// Convert a 32-byte big-endian array into an Fr.
-fn bytes32_to_fr(bytes: &[u8; 32]) -> Fr {
-    Fr::from_bytes(bytes)
-}
+use soroban_sdk::{Bytes, Env};
 
 /// Split a 32-byte big-endian field element into (low136, high) limbs.
 pub fn coord_to_halves_be(coord: &[u8; 32]) -> ([u8; 32], [u8; 32]) {
@@ -42,7 +37,7 @@ fn combine_limbs(lo: &[u8; 32], hi: &[u8; 32]) -> [u8; 32] {
 ///
 /// Note (bb v0.87.0): G1 coordinates are encoded as two limbs per coordinate
 /// using the (lo136, hi<=118) split and stored in the order (x_lo, x_hi, y_lo, y_hi).
-pub fn load_proof(proof_bytes: &Bytes) -> Proof {
+pub fn load_proof(env: &Env, proof_bytes: &Bytes) -> Proof {
     assert_eq!(proof_bytes.len() as usize, PROOF_BYTES, "proof bytes len");
     let mut boundary = 0u32;
 
@@ -57,14 +52,14 @@ pub fn load_proof(proof_bytes: &Bytes) -> Proof {
     }
 
     // Helper: bytesToFr (read next 32 bytes as Fr)
-    fn bytes_to_fr(bytes: &Bytes, cur: &mut u32) -> Fr {
+    fn bytes_to_fr(env: &Env, bytes: &Bytes, cur: &mut u32) -> Fr {
         let arr = read_bytes::<32>(bytes, cur);
-        bytes32_to_fr(&arr)
+        Fr::from_array(env, &arr)
     }
 
     // 0) pairing point object
     let pairing_point_object: [Fr; PAIRING_POINTS_SIZE] =
-        array::from_fn(|_| bytes_to_fr(proof_bytes, &mut boundary));
+        array::from_fn(|_| bytes_to_fr(env, proof_bytes, &mut boundary));
 
     // 1) w1, w2, w3
     let w1 = bytes_to_g1_proof_point(proof_bytes, &mut boundary);
@@ -83,18 +78,17 @@ pub fn load_proof(proof_bytes: &Bytes) -> Proof {
     let z_perm = bytes_to_g1_proof_point(proof_bytes, &mut boundary);
 
     // 5) sumcheck_univariates
-    let mut sumcheck_univariates =
-        [[Fr::zero(); BATCHED_RELATION_PARTIAL_LENGTH]; CONST_PROOF_SIZE_LOG_N];
+    let mut sumcheck_univariates = array::repeat(Fr::zero_array(env));
 
     sumcheck_univariates.iter_mut().for_each(|row| {
         row.iter_mut().for_each(|col| {
-            *col = bytes_to_fr(proof_bytes, &mut boundary);
+            *col = bytes_to_fr(env, proof_bytes, &mut boundary);
         });
     });
 
     // 6) sumcheck_evaluations
     let sumcheck_evaluations: [Fr; NUMBER_OF_ENTITIES] =
-        array::from_fn(|_| bytes_to_fr(proof_bytes, &mut boundary));
+        array::from_fn(|_| bytes_to_fr(env, proof_bytes, &mut boundary));
 
     // 7) gemini_fold_comms
     let gemini_fold_comms: [G1Point; CONST_PROOF_SIZE_LOG_N - 1] =
@@ -102,7 +96,7 @@ pub fn load_proof(proof_bytes: &Bytes) -> Proof {
 
     // 8) gemini_a_evaluations
     let gemini_a_evaluations: [Fr; CONST_PROOF_SIZE_LOG_N] =
-        array::from_fn(|_| bytes_to_fr(proof_bytes, &mut boundary));
+        array::from_fn(|_| bytes_to_fr(env, proof_bytes, &mut boundary));
 
     // 9) shplonk_q, kzg_quotient
     let shplonk_q = bytes_to_g1_proof_point(proof_bytes, &mut boundary);

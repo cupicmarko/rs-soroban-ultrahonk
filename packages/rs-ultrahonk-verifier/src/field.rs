@@ -1,12 +1,7 @@
-use ark_bn254::Fr as ArkFr;
-use ark_ff::BigInteger256;
-use ark_ff::{Field, PrimeField, Zero};
-use core::ops::{Add, Mul, Neg, Sub};
-use hex;
-
 #[cfg(not(feature = "std"))]
 use alloc::{borrow::ToOwned, string::String};
-use core::str::FromStr;
+use core::array;
+use soroban_sdk::{BytesN, Env, U256};
 
 #[inline(always)]
 fn normalize_hex(s: &str) -> String {
@@ -21,70 +16,72 @@ fn normalize_hex(s: &str) -> String {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Fr(pub ArkFr);
+pub type Fr = soroban_sdk::crypto::bn254::Bn254Fr;
 
-impl FromStr for Fr {
-    type Err = ();
-
-    /// Construct from hex string (with or without 0x prefix).
-    /// Normalize to even digits before `hex::decode` so OddLength exception won't occur.
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = hex::decode(normalize_hex(s)).expect("hex decode failed");
-        let mut padded = [0u8; 32];
-        let offset = 32 - bytes.len();
-        padded[offset..].copy_from_slice(&bytes);
-        Ok(Self::from_bytes(&padded))
-    }
-}
-
-impl Fr {
-    /// Construct from u64.
-    pub fn from_u64(x: u64) -> Self {
-        Fr(ArkFr::from(x))
-    }
-
-    /// Construct from a 32-byte big-endian array.
-    pub fn from_bytes(bytes: &[u8; 32]) -> Self {
-        // ark-ff takes LE (little-endian) so BE → LE
-        let mut tmp = *bytes;
-        tmp.reverse();
-        Fr(ArkFr::from_le_bytes_mod_order(&tmp))
-    }
-
-    /// Convert to 32-byte big-endian representation.
-    #[inline(always)]
-    pub fn to_bytes(&self) -> [u8; 32] {
-        let bi: BigInteger256 = self.0.into_bigint();
-        let mut out = [0u8; 32];
-        for (i, limb) in bi.0.iter().rev().enumerate() {
-            out[i * 8..(i + 1) * 8].copy_from_slice(&limb.to_be_bytes());
-        }
-        out
-    }
-
-    pub fn inverse(&self) -> Option<Self> {
-        self.0.inverse().map(Fr)
-    }
-
-    pub fn zero() -> Self {
-        Fr(ArkFr::zero())
-    }
-
-    pub fn one() -> Self {
-        Fr(ArkFr::ONE)
-    }
-
-    pub fn pow(&self, exp: u128) -> Self {
-        let mut bits = [0u64; 4];
-        bits[0] = exp as u64;
-        Fr(self.0.pow(bits))
-    }
-
-    pub fn is_zero(&self) -> bool {
-        self.0.is_zero()
-    }
-}
+// #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// pub struct Fr(pub ArkFr);
+//
+// impl FromStr for Fr {
+//     type Err = ();
+//
+//     /// Construct from hex string (with or without 0x prefix).
+//     /// Normalize to even digits before `hex::decode` so OddLength exception won't occur.
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         let bytes = hex::decode(normalize_hex(s)).expect("hex decode failed");
+//         let mut padded = [0u8; 32];
+//         let offset = 32 - bytes.len();
+//         padded[offset..].copy_from_slice(&bytes);
+//         Ok(Self::from_bytes(&padded))
+//     }
+// }
+//
+// impl Fr {
+//     /// Construct from u64.
+//     pub fn from_u64(x: u64) -> Self {
+//         Fr(ArkFr::from(x))
+//     }
+//
+//     /// Construct from a 32-byte big-endian array.
+//     pub fn from_bytes(bytes: &[u8; 32]) -> Self {
+//         // ark-ff takes LE (little-endian) so BE → LE
+//         let mut tmp = *bytes;
+//         tmp.reverse();
+//         Fr(ArkFr::from_le_bytes_mod_order(&tmp))
+//     }
+//
+//     /// Convert to 32-byte big-endian representation.
+//     #[inline(always)]
+//     pub fn to_bytes(&self) -> [u8; 32] {
+//         let bi: BigInteger256 = self.0.into_bigint();
+//         let mut out = [0u8; 32];
+//         for (i, limb) in bi.0.iter().rev().enumerate() {
+//             out[i * 8..(i + 1) * 8].copy_from_slice(&limb.to_be_bytes());
+//         }
+//         out
+//     }
+//
+//     pub fn inverse(&self) -> Option<Self> {
+//         self.0.inverse().map(Fr)
+//     }
+//
+//     pub fn zero() -> Self {
+//         Fr(ArkFr::zero(env))
+//     }
+//
+//     pub fn one() -> Self {
+//         Fr(ArkFr::ONE)
+//     }
+//
+//     pub fn pow(&self, exp: u128) -> Self {
+//         let mut bits = [0u64; 4];
+//         bits[0] = exp as u64;
+//         Fr(self.0.pow(bits))
+//     }
+//
+//     pub fn is_zero(&self) -> bool {
+//         self.0.is_zero()
+//     }
+// }
 
 /// Montgomery batch inversion: compute all inverses of `vals[..n]` using a
 /// single field inversion + 3*(n-1) multiplications, writing results into `out`.
@@ -99,49 +96,86 @@ pub fn batch_inverse(vals: &[Fr], out: &mut [Fr]) -> Result<(), &'static str> {
     }
 
     // 1) Build prefix products in `out`: out[i] = vals[0] * vals[1] * ... * vals[i]
-    out[0] = vals[0];
+    out[0] = vals[0].clone();
     for i in 1..n {
-        out[i] = out[i - 1] * vals[i];
+        out[i] = out[i - 1].clone() * vals[i].clone();
     }
 
     // 2) Invert the total product
     let mut inv_acc = out[n - 1]
-        .inverse()
-        .ok_or("batch_inverse: product is zero (at least one input element is zero)")?;
+        .inv();
 
     // 3) Sweep back to recover individual inverses
     for i in (1..n).rev() {
-        out[i] = inv_acc * out[i - 1];
-        inv_acc = inv_acc * vals[i];
+        out[i] = inv_acc.clone() * out[i - 1].clone();
+        inv_acc = inv_acc * vals[i].clone();
     }
     out[0] = inv_acc;
     Ok(())
 }
 
-impl Add for Fr {
-    type Output = Fr;
-    fn add(self, rhs: Fr) -> Fr {
-        Fr(self.0 + rhs.0)
+// impl Add for Fr {
+//     type Output = Fr;
+//     fn add(self, rhs: Fr) -> Fr {
+//         Fr(self.0 + rhs.0)
+//     }
+// }
+//
+// impl Sub for Fr {
+//     type Output = Fr;
+//     fn sub(self, rhs: Fr) -> Fr {
+//         Fr(self.0 - rhs.0)
+//     }
+// }
+//
+// impl Mul for Fr {
+//     type Output = Fr;
+//     fn mul(self, rhs: Fr) -> Fr {
+//         Fr(self.0 * rhs.0)
+//     }
+// }
+//
+// impl Neg for Fr {
+//     type Output = Fr;
+//     fn neg(self) -> Fr {
+//         Fr(-self.0)
+//     }
+// }
+
+pub trait Field: Sized + Clone {
+    fn zero(env: &Env) -> Self;
+    fn one(env: &Env) -> Self;
+    fn is_zero(&self) -> bool;
+    fn from_u32(env: &Env, x: u32) -> Self;
+    fn from_u128(env: &Env, x: u128) -> Self;
+    fn from_array(env: &Env, bytes: &[u8; 32]) -> Self;
+    fn zero_array<const N: usize>(env: &Env) -> [Self; N] {
+        array::repeat(Self::zero(env))
     }
 }
 
-impl Sub for Fr {
-    type Output = Fr;
-    fn sub(self, rhs: Fr) -> Fr {
-        Fr(self.0 - rhs.0)
+impl Field for Fr {
+    fn zero(env: &Env) -> Self {
+        Self::from_u256(U256::from_u32(env, 0))
     }
-}
 
-impl Mul for Fr {
-    type Output = Fr;
-    fn mul(self, rhs: Fr) -> Fr {
-        Fr(self.0 * rhs.0)
+    fn one(env: &Env) -> Self {
+        Self::from_u256(U256::from_u32(env, 1))
     }
-}
 
-impl Neg for Fr {
-    type Output = Fr;
-    fn neg(self) -> Fr {
-        Fr(-self.0)
+    fn is_zero(&self) -> bool {
+        self.eq(&Self::zero(self.env()))
+    }
+
+    fn from_u32(env: &Env, x: u32) -> Self {
+        Self::from_u256(U256::from_u32(env, x))
+    }
+
+    fn from_u128(env: &Env, x: u128) -> Self {
+        Self::from_u256(U256::from_u128(env, x))
+    }
+
+    fn from_array(env: &Env, bytes: &[u8; 32]) -> Self {
+        Fr::from_bytes(BytesN::from_array(env, bytes))
     }
 }
