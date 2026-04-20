@@ -159,10 +159,10 @@ fn generate_gate_challenges(
 ) -> ([Fr; CONST_PROOF_SIZE_LOG_N], Fr) {
     let mut next_previous_challenge = previous_challenge;
     let mut gate_challenges = [Fr::zero(); CONST_PROOF_SIZE_LOG_N];
-    for i in 0..CONST_PROOF_SIZE_LOG_N {
+    for challenge in gate_challenges.iter_mut() {
         let next_bytes = Bytes::from_array(env, &next_previous_challenge.to_bytes());
         next_previous_challenge = hash_to_fr(&next_bytes);
-        gate_challenges[i] = split_challenge(next_previous_challenge).0;
+        *challenge = split_challenge(next_previous_challenge).0;
     }
     (gate_challenges, next_previous_challenge)
 }
@@ -174,14 +174,14 @@ fn generate_sumcheck_challenges(
 ) -> ([Fr; CONST_PROOF_SIZE_LOG_N], Fr) {
     let mut next_previous_challenge = previous_challenge;
     let mut sumcheck_challenges = [Fr::zero(); CONST_PROOF_SIZE_LOG_N];
-    for r in 0..CONST_PROOF_SIZE_LOG_N {
+    for (r, challenge) in sumcheck_challenges.iter_mut().enumerate() {
         let mut data = Bytes::new(env);
         data.extend_from_slice(&next_previous_challenge.to_bytes());
         for &c in proof.sumcheck_univariates[r].iter() {
             data.extend_from_slice(&c.to_bytes());
         }
         next_previous_challenge = hash_to_fr(&data);
-        sumcheck_challenges[r] = split_challenge(next_previous_challenge).0;
+        *challenge = split_challenge(next_previous_challenge).0;
     }
     (sumcheck_challenges, next_previous_challenge)
 }

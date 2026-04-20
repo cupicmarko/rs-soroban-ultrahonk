@@ -85,9 +85,9 @@ pub fn load_proof(proof_bytes: &Bytes) -> Proof {
     // 5) sumcheck_univariates
     let mut sumcheck_univariates =
         [[Fr::zero(); BATCHED_RELATION_PARTIAL_LENGTH]; CONST_PROOF_SIZE_LOG_N];
-    for r in 0..CONST_PROOF_SIZE_LOG_N {
-        for i in 0..BATCHED_RELATION_PARTIAL_LENGTH {
-            sumcheck_univariates[r][i] = bytes_to_fr(proof_bytes, &mut boundary);
+    for univariate in sumcheck_univariates.iter_mut() {
+        for element in univariate.iter_mut() {
+            *element = bytes_to_fr(proof_bytes, &mut boundary);
         }
     }
 

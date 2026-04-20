@@ -425,6 +425,5 @@ pub fn accumulate_relation_evaluations(
         pow_partial_eval,
     );
 
-    let accumulator = scale_and_batch_subrelations(&evaluations, alphas);
-    accumulator
+    scale_and_batch_subrelations(&evaluations, alphas)
 }

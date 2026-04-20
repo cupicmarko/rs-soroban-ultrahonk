@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use soroban_env_host::DiagnosticLevel;
 use soroban_poseidon::{poseidon2_hash, Field};
 use soroban_sdk::{
@@ -19,6 +21,8 @@ use soroban_sdk::{IntoVal, InvokeError, Symbol, Val};
 
 use rs_soroban_ultrahonk::UltraHonkVerifierContract;
 use tornado_classic_contracts::mixer::{MixerContract, MixerError};
+
+#[cfg(feature = "testutils")]
 use ultrahonk_soroban_verifier::PROOF_BYTES;
 
 const TREE_DEPTH_TEST: u32 = 20;
@@ -260,8 +264,7 @@ fn mixer_withdraw_and_double_spend_rejected() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected error");
+        .expect_err("expected error");
     assert_eq!(err as u32, MixerError::NullifierUsed as u32);
 }
 
@@ -323,8 +326,7 @@ fn withdraw_rejects_invalid_public_inputs() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected verification failure");
+        .expect_err("expected verification failure");
     assert_eq!(err as u32, MixerError::VerificationFailed as u32);
 
     let mut nf_arr = [0u8; 32];
@@ -373,8 +375,7 @@ fn withdraw_rejects_root_mismatch() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected root mismatch");
+        .expect_err("expected root mismatch");
     assert_eq!(err as u32, MixerError::RootMismatch as u32);
 
     let mut nf_arr = [0u8; 32];
@@ -388,6 +389,7 @@ fn withdraw_rejects_root_mismatch() {
 
 /// Measure deposit/withdraw budget using release WASM contracts.
 #[cfg(feature = "wasm-cost")]
+#[allow(clippy::assertions_on_constants)]
 #[test]
 fn print_wasm_budget_for_deposit_and_withdraw() {
     assert!(
@@ -452,7 +454,6 @@ fn deposit_rejects_duplicate_commitment() {
         .as_contract(&mixer_id, || {
             MixerContract::deposit(env.clone(), cm.clone())
         })
-        .err()
-        .expect("expected duplicate commitment error");
+        .expect_err("expected duplicate commitment error");
     assert_eq!(err as u32, MixerError::CommitmentExists as u32);
 }

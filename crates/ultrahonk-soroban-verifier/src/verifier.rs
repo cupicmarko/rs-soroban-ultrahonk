@@ -52,7 +52,7 @@ impl UltraHonkVerifier {
         let proof = load_proof(proof_bytes);
 
         // 2) sanity on public inputs (length and VK metadata if present)
-        if public_inputs_bytes.len() % 32 != 0 {
+        if !public_inputs_bytes.len().is_multiple_of(32) {
             return Err(VerifyError::InvalidInput(
                 "public inputs must be 32-byte aligned",
             ));
