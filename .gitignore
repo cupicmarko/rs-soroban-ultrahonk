@@ -20,6 +20,7 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+.contract_id
 test_snapshots
 Cargo.lock
 scripts/measure_ultrahonk_costs/node_modules/

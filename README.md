@@ -41,46 +41,38 @@ Docker is required to run the local Standalone Network container (`stellar conta
 
 ## Quickstart (localnet)
 
-Prereqs:
-- `stellar` CLI (stellar-cli)
-- Rust + `wasm32v1-none` target
-- Docker (for localnet)
+We've provided streamlined scripts to easily start the network, build the ZK artifacts, and execute the verifier on-chain.
 
+### 1. Start the Network
+Start a local Stellar network in a Docker container and configure your environment:
 ```bash
-# 1) Start localnet
-stellar container start -t future --name local --limits unlimited
+./scripts/start_stellar.sh
+```
+*(Optional: Pass `--limits unlimited` if you need to override Docker resource limits)*
 
-# 2) Configure network + identity
-stellar network add local \
-  --rpc-url http://localhost:8000/soroban/rpc \
-  --network-passphrase "Standalone Network ; February 2017"
-stellar network use local
-stellar network health --output json
-stellar keys generate --global alice
-stellar keys fund alice --network local
-stellar keys address alice
+### 2. Deploy the Contract
+This script will automatically fund your `alice` test account, compile the Noir circuits, build the Soroban contract for your local target, and deploy it to the localnet.
+```bash
+./scripts/deploy.sh
+```
+*(The generated `CONTRACT_ID` is saved locally to `.contract_id`)*
 
-# 3) Build + deploy (constructor requires a VK from tests/build_circuits.sh)
-rustup target add wasm32v1-none
-stellar contract build
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/rs_soroban_ultrahonk.wasm \
-  --source alice \
-  -- \
-  --vk_bytes-file-path tests/simple_circuit/target/vk
+### 3. Verify a Proof
+To simulate the verifier on-chain using the ZK proofs generated in the previous step:
+```bash
+./scripts/verify.sh
+```
+*(This automatically reads from `.contract_id` and executes `verify_proof` against your deployed contract)*
+
+### Stop the Network
+When you're done, tear down the container:
+```bash
+./scripts/stop_stellar.sh
 ```
 
-## Invoke verify_proof
+## Advanced usage
 
-### Build ZK artifacts (vk/proof/public_inputs)
-
-From the repo root. You need Noir tooling (`nargo`) and `bb` (barretenberg). Artifacts are generated with `--oracle_hash keccak`.
-
-```bash
-tests/build_circuits.sh
-```
-
-### Use the helper script
+### Use the JS helper script
 
 Expects a dataset folder with `public_inputs`, `proof` (the VK is already on-chain from deploy):
 
@@ -88,26 +80,11 @@ Expects a dataset folder with `public_inputs`, `proof` (the VK is already on-cha
 cd scripts/invoke_ultrahonk
 npm install
 npx ts-node invoke_ultrahonk.ts invoke \
-  --dataset ../../tests/simple_circuit/target \
-  --contract-id <CONTRACT_ID> \
+  --dataset ../../contracts/rs-soroban-ultrahonk/tests/simple_circuit/target \
+  --contract-id $(cat ../../.contract_id) \
   --network local \
   --source-account alice \
   --send yes
-```
-
-### Direct CLI invoke
-
-```bash
-stellar contract invoke \
-  --id <CONTRACT_ID> \
-  --source alice \
-  --network local \
-  --send yes \
-  --cost \
-  -- \
-  verify_proof \
-  --public_inputs-file-path tests/simple_circuit/target/public_inputs \
-  --proof_bytes-file-path tests/simple_circuit/target/proof
 ```
 
 ## VK policy (important)
@@ -118,9 +95,10 @@ This contract does not enforce access control:
 
 ## Tests
 
+Run all unit and integration tests across the Cargo workspace (including `rs-soroban-ultrahonk` and `tornado_classic`):
+
 ```bash
-RUST_TEST_THREADS=1 cargo test --test integration_tests -- --nocapture
-cargo test --manifest-path tornado_classic/contracts/Cargo.toml --features testutils -- --nocapture
+cargo test --workspace --all-features --release
 ```
 
 ## References
