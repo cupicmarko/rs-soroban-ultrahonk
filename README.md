@@ -2,6 +2,43 @@
 
 Soroban contract wrapper around the Noir(UltraHonk) verifier. The VK is set at deploy time; proofs are verified with `public_inputs` and `proof`.
 
+## Requirements Installation
+
+Before you begin, ensure you have the following tools installed:
+
+### 1. Rust and WASM target
+Install Rust using [rustup](https://rustup.rs/):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup target add wasm32v1-none
+```
+
+### 2. Stellar CLI
+Install the Soroban/Stellar CLI. We recommend using a recent version:
+```bash
+cargo install --locked stellar-cli@^3.2.0
+```
+
+### 3. Noir and Barretenberg
+This project uses **Noir `1.0.0-beta.9`** and **Barretenberg `0.87.0`**. Install them using their respective version managers:
+```bash
+# Install noirup and switch to Noir 1.0.0-beta.9
+curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+noirup -v 1.0.0-beta.9
+
+# Install bbup and switch to Barretenberg 0.87.0
+curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/cpp/installation/install | bash
+bbup -v 0.87.0
+```
+
+### 4. Node.js
+For the helper scripts used to invoke verified transactions (`scripts/invoke_ultrahonk`), ensure you have Node.js and npm installed:
+- [Install Node.js](https://nodejs.org/)
+
+### 5. Docker
+Docker is required to run the local Standalone Network container (`stellar container start`).
+- [Install Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine depending on your system.
+
 ## Quickstart (localnet)
 
 Prereqs:
