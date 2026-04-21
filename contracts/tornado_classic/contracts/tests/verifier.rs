@@ -37,5 +37,4 @@ fn verify_proof_with_constructor_vk() {
         )
     })
     .expect("verification should succeed");
-
 }
