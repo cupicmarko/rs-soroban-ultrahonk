@@ -45,17 +45,22 @@ echo -e "${GREEN}✓ Target wasm32v1-none added${NC}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo -e "\n${BLUE}3. Installing Node.js dependencies...${NC}"
+NPM_CMD="install"
+if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+    NPM_CMD="ci"
+fi
+
 if [ -d "$ROOT_DIR/scripts/measure_ultrahonk_costs" ]; then
-    echo "Installing measurement script dependencies..."
+    echo "Installing measurement script dependencies (npm $NPM_CMD)..."
     cd "$ROOT_DIR/scripts/measure_ultrahonk_costs"
-    npm install
+    npm "$NPM_CMD"
     echo -e "${GREEN}✓ measure_ultrahonk_costs dependencies installed${NC}"
 fi
 
 if [ -d "$ROOT_DIR/scripts/invoke_ultrahonk" ]; then
-    echo "Installing invocation script dependencies..."
+    echo "Installing invocation script dependencies (npm $NPM_CMD)..."
     cd "$ROOT_DIR/scripts/invoke_ultrahonk"
-    npm install
+    npm "$NPM_CMD"
     echo -e "${GREEN}✓ invoke_ultrahonk dependencies installed${NC}"
 fi
 
