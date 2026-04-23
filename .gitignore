@@ -25,3 +25,6 @@ test_snapshots
 Cargo.lock
 scripts/measure_ultrahonk_costs/node_modules/
 scripts/invoke_ultrahonk/node_modules/
+
+# Environment overrides
+.env
