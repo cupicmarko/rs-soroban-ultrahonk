@@ -6,11 +6,6 @@
 use crate::field::Fr;
 use crate::types::{RelationParameters, Wire, NUMBER_OF_SUBRELATIONS};
 
-#[cfg(feature = "std")]
-macro_rules! println {
-    ($($args:tt)*) => { std::println!($($args)*) };
-}
-
 /// Precomputed NEG_HALF = (p - 1)/2 in BN254 scalar field.
 fn neg_half() -> Fr {
     Fr::from_str("0x183227397098d014dc2822db40c0ac2e9419f4243cdcb848a1f0fac9f8000000")
@@ -430,6 +425,5 @@ pub fn accumulate_relation_evaluations(
         pow_partial_eval,
     );
 
-    let accumulator = scale_and_batch_subrelations(&evaluations, alphas);
-    accumulator
+    scale_and_batch_subrelations(&evaluations, alphas)
 }

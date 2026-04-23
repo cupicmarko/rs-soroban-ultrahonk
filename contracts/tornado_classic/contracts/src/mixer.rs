@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use soroban_poseidon::{poseidon2_hash, Field};
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, crypto::BnScalar, symbol_short, Address,
-    Bytes, BytesN, Env, InvokeError, IntoVal, Symbol, U256, Vec as SorobanVec, Val,
+    Bytes, BytesN, Env, IntoVal, InvokeError, Symbol, Val, Vec as SorobanVec, U256,
 };
 use ultrahonk_soroban_verifier::PROOF_BYTES;
 
@@ -36,12 +36,24 @@ pub struct WithdrawEvent<'a> {
     pub nullifier_hash: &'a BytesN<32>,
 }
 
-fn key_commitment_prefix() -> Symbol { symbol_short!("cm") }
-fn key_nullifier_prefix() -> Symbol { symbol_short!("nf") }
-fn key_root() -> Symbol { symbol_short!("root") }
-fn key_frontier_prefix() -> Symbol { symbol_short!("fr") }
-fn key_next_index() -> Symbol { symbol_short!("idx") }
-fn key_verifier() -> Symbol { symbol_short!("ver") }
+fn key_commitment_prefix() -> Symbol {
+    symbol_short!("cm")
+}
+fn key_nullifier_prefix() -> Symbol {
+    symbol_short!("nf")
+}
+fn key_root() -> Symbol {
+    symbol_short!("root")
+}
+fn key_frontier_prefix() -> Symbol {
+    symbol_short!("fr")
+}
+fn key_next_index() -> Symbol {
+    symbol_short!("idx")
+}
+fn key_verifier() -> Symbol {
+    symbol_short!("ver")
+}
 
 const TREE_DEPTH: u32 = 20;
 const MAX_LEAVES: u32 = 1u32 << TREE_DEPTH;
@@ -164,11 +176,7 @@ impl MixerContract {
 
     /// Verifies a proof with the stored verification key and marks the nullifier spent.
     /// The public inputs are ordered as `[root, nullifier_hash]`.
-    pub fn withdraw(
-        env: Env,
-        public_inputs: Bytes,
-        proof_bytes: Bytes,
-    ) -> Result<(), MixerError> {
+    pub fn withdraw(env: Env, public_inputs: Bytes, proof_bytes: Bytes) -> Result<(), MixerError> {
         if proof_bytes.len() as usize != PROOF_BYTES {
             return Err(MixerError::VerificationFailed);
         }
@@ -216,7 +224,6 @@ impl MixerContract {
     pub fn get_root(env: Env) -> Option<BytesN<32>> {
         env.storage().instance().get(&key_root())
     }
-
 }
 
 #[cfg(any(test, feature = "testutils"))]

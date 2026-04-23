@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use soroban_poseidon::{poseidon2_hash, Field};
-use soroban_sdk::{crypto::BnScalar, Bytes, Env, U256, Vec as SorobanVec};
+use soroban_sdk::{crypto::BnScalar, Bytes, Env, Vec as SorobanVec, U256};
 use std::{env, fs, path::Path};
 
 const TREE_DEPTH: usize = 20;
@@ -16,10 +16,7 @@ impl Lcg {
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self
-            .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1);
+        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
         self.state
     }
 }
@@ -122,7 +119,9 @@ fn main() {
         siblings = (0..TREE_DEPTH)
             .map(|_| BigUint::from(rng.next_u64()))
             .collect();
-        bits = (0..TREE_DEPTH).map(|_| (rng.next_u64() & 1) as u8).collect();
+        bits = (0..TREE_DEPTH)
+            .map(|_| (rng.next_u64() & 1) as u8)
+            .collect();
 
         let sibling_strings: Vec<String> = siblings.iter().map(|v| v.to_string()).collect();
         let bit_strings: Vec<String> = bits.iter().map(|v| v.to_string()).collect();
@@ -170,7 +169,11 @@ fn main() {
                     .split(',')
                     .filter_map(|x| {
                         let t = x.trim().trim_matches('"');
-                        if t.is_empty() { None } else { Some(biguint_from_dec(t)) }
+                        if t.is_empty() {
+                            None
+                        } else {
+                            Some(biguint_from_dec(t))
+                        }
                     })
                     .collect();
             } else if l.starts_with("path_bits = [") {
@@ -185,7 +188,11 @@ fn main() {
                     .split(',')
                     .filter_map(|x| {
                         let t = x.trim().trim_matches('"');
-                        if t.is_empty() { None } else { Some(t.parse::<u8>().expect("bit")) }
+                        if t.is_empty() {
+                            None
+                        } else {
+                            Some(t.parse::<u8>().expect("bit"))
+                        }
                     })
                     .collect();
             }
@@ -205,7 +212,9 @@ fn main() {
 
     let mut path_index = BigUint::from(0u32);
     for (i, &b) in bits.iter().enumerate() {
-        if b == 1 { path_index += BigUint::from(1u128) << i; }
+        if b == 1 {
+            path_index += BigUint::from(1u128) << i;
+        }
     }
     // append updated fields at end (simple and explicit)
     let mut out = String::new();

@@ -1,16 +1,10 @@
+use rs_soroban_ultrahonk::{UltraHonkVerifierContract, UltraHonkVerifierContractClient};
 use soroban_sdk::{Bytes, Env};
 use ultrahonk_soroban_verifier::PROOF_BYTES;
 
-const CONTRACT_WASM: &[u8] =
-    include_bytes!("../target/wasm32v1-none/release/rs_soroban_ultrahonk.wasm");
-
-mod ultrahonk_contract {
-    soroban_sdk::contractimport!(file = "target/wasm32v1-none/release/rs_soroban_ultrahonk.wasm");
-}
-
-fn register_client<'a>(env: &'a Env, vk_bytes: &Bytes) -> ultrahonk_contract::Client<'a> {
-    let contract_id = env.register(CONTRACT_WASM, (vk_bytes.clone(),));
-    ultrahonk_contract::Client::new(env, &contract_id)
+fn register_client<'a>(env: &'a Env, vk_bytes: &Bytes) -> UltraHonkVerifierContractClient<'a> {
+    let contract_id = env.register(UltraHonkVerifierContract, (vk_bytes.clone(),));
+    UltraHonkVerifierContractClient::new(env, &contract_id)
 }
 
 #[test]

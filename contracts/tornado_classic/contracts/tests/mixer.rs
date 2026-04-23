@@ -1,40 +1,31 @@
+#![allow(dead_code)]
+
 use soroban_env_host::DiagnosticLevel;
 use soroban_poseidon::{poseidon2_hash, Field};
 use soroban_sdk::{
-    crypto::BnScalar, testutils::Address as TestAddress, Address, Bytes, BytesN, Env, U256,
-    Vec as SorobanVec,
+    crypto::BnScalar, testutils::Address as TestAddress, Address, Bytes, BytesN, Env,
+    Vec as SorobanVec, U256,
 };
 
 use std::sync::{Mutex, OnceLock};
 
-use tornado_classic_contracts::mixer::{MixerContract, MixerError};
+#[cfg(feature = "wasm-cost")]
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+#[cfg(feature = "wasm-cost")]
+use soroban_sdk::{IntoVal, InvokeError, Symbol, Val};
+
 use rs_soroban_ultrahonk::UltraHonkVerifierContract;
+use tornado_classic_contracts::mixer::{MixerContract, MixerError};
+
+#[cfg(feature = "testutils")]
 use ultrahonk_soroban_verifier::PROOF_BYTES;
 
 const TREE_DEPTH_TEST: u32 = 20;
-
-#[cfg(feature = "wasm-cost")]
-mod wasm_artifacts {
-    pub const VERIFIER_WASM: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../target/wasm32v1-none/release/rs_soroban_ultrahonk.wasm"
-    ));
-    pub const MIXER_WASM: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/target/wasm32v1-none/release/tornado_classic_contracts.wasm"
-    ));
-
-    pub mod ultrahonk_contract {
-        soroban_sdk::contractimport!(
-            file = "../../target/wasm32v1-none/release/rs_soroban_ultrahonk.wasm"
-        );
-    }
-    pub mod mixer_contract {
-        soroban_sdk::contractimport!(
-            file = "target/wasm32v1-none/release/tornado_classic_contracts.wasm"
-        );
-    }
-}
 
 fn verify_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -67,7 +58,10 @@ fn hash2(env: &Env, a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
 
 fn zero_at(env: &Env, level: u32) -> [u8; 32] {
     let mut z = [0u8; 32];
-    for _ in 0..level { let zz = z; z = hash2(env, &zz, &zz); }
+    for _ in 0..level {
+        let zz = z;
+        z = hash2(env, &zz, &zz);
+    }
     z
 }
 
@@ -85,7 +79,10 @@ fn frontier_root_from_leaves(env: &Env, leaves: &[[u8; 32]], depth: u32) -> [u8;
                 let z = zero_at(env, level);
                 cur = hash2(env, &cur, &z);
             } else {
-                let left = frontier[level as usize].as_ref().copied().unwrap_or_else(|| zero_at(env, level));
+                let left = frontier[level as usize]
+                    .as_ref()
+                    .copied()
+                    .unwrap_or_else(|| zero_at(env, level));
                 cur = hash2(env, &left, &cur);
             }
             level += 1;
@@ -103,21 +100,89 @@ fn register_mixer(env: &Env, verifier: Address) -> Address {
 }
 
 #[cfg(feature = "wasm-cost")]
-fn register_wasm_verifier<'a>(
-    env: &'a Env,
-    vk_bytes: &Bytes,
-) -> (wasm_artifacts::ultrahonk_contract::Client<'a>, Address) {
-    let contract_id = env.register(wasm_artifacts::VERIFIER_WASM, (vk_bytes.clone(),));
-    (wasm_artifacts::ultrahonk_contract::Client::new(env, &contract_id), contract_id)
+fn workspace_root() -> PathBuf {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .join("../../..")
+        .canonicalize()
+        .expect("workspace root must exist")
 }
 
 #[cfg(feature = "wasm-cost")]
-fn register_wasm_mixer<'a>(
-    env: &'a Env,
-    verifier: Address,
-) -> (wasm_artifacts::mixer_contract::Client<'a>, Address) {
-    let contract_id = env.register(wasm_artifacts::MIXER_WASM, (verifier,));
-    (wasm_artifacts::mixer_contract::Client::new(env, &contract_id), contract_id)
+fn wasm_release_path(file_name: &str) -> Option<PathBuf> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        workspace_root()
+            .join("target/wasm32v1-none/release")
+            .join(file_name),
+        manifest_dir
+            .join("../../target/wasm32v1-none/release")
+            .join(file_name),
+        manifest_dir
+            .join("target/wasm32v1-none/release")
+            .join(file_name),
+    ];
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+#[cfg(feature = "wasm-cost")]
+fn ensure_release_wasm(file_name: &str, package: &str, extra_args: &[&str]) -> Vec<u8> {
+    if let Some(path) = wasm_release_path(file_name) {
+        return fs::read(&path).expect("reading existing wasm artifact should succeed");
+    }
+
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(workspace_root());
+    cmd.args([
+        "build",
+        "--release",
+        "--target",
+        "wasm32v1-none",
+        "-p",
+        package,
+    ]);
+    cmd.args(extra_args);
+    let status = cmd
+        .status()
+        .expect("failed to spawn cargo; ensure cargo is installed and on PATH");
+    assert!(
+        status.success(),
+        "failed to build release wasm for package `{package}`"
+    );
+
+    if let Some(path) = wasm_release_path(file_name) {
+        return fs::read(&path).expect("reading built wasm artifact should succeed");
+    }
+
+    panic!(
+        "release wasm artifact `{file_name}` not found after build; expected under `target/wasm32v1-none/release/`"
+    );
+}
+
+#[cfg(feature = "wasm-cost")]
+fn register_wasm_verifier(env: &Env, vk_bytes: &Bytes) -> Address {
+    let wasm = ensure_release_wasm("rs_soroban_ultrahonk.wasm", "rs-soroban-ultrahonk", &[]);
+    env.register(wasm.as_slice(), (vk_bytes.clone(),))
+}
+
+#[cfg(feature = "wasm-cost")]
+fn register_wasm_mixer(env: &Env, verifier: Address) -> Address {
+    let wasm = ensure_release_wasm(
+        "tornado_classic_contracts.wasm",
+        "tornado_classic_contracts",
+        &["--features", "wasm-cost"],
+    );
+    env.register(wasm.as_slice(), (verifier,))
+}
+
+#[cfg(feature = "wasm-cost")]
+fn wasm_call_ok<T>(env: &Env, id: &Address, fn_name: &str, args: SorobanVec<Val>) -> T
+where
+    T: soroban_sdk::TryFromVal<Env, Val>,
+{
+    env.try_invoke_contract::<T, InvokeError>(id, &Symbol::new(env, fn_name), args)
+        .expect("host contract invocation should succeed")
+        .expect("contract call should succeed")
 }
 
 /// Deposits a sequence of leaves and checks the contract frontier updates match a reference implementation.
@@ -138,8 +203,13 @@ fn merkle_frontier_updates_root_matches_reference() {
     }
 
     for (n, leaf) in leaves.iter().enumerate() {
-        env.as_contract(&mixer_id, || MixerContract::deposit(env.clone(), BytesN::from_array(&env, leaf))).unwrap();
-        let onchain_root = env.as_contract(&mixer_id, || MixerContract::get_root(env.clone())).unwrap();
+        env.as_contract(&mixer_id, || {
+            MixerContract::deposit(env.clone(), BytesN::from_array(&env, leaf))
+        })
+        .unwrap();
+        let onchain_root = env
+            .as_contract(&mixer_id, || MixerContract::get_root(env.clone()))
+            .unwrap();
         let expected_root = frontier_root_from_leaves(&env, &leaves[0..=n], TREE_DEPTH_TEST);
         assert_eq!(onchain_root, BytesN::from_array(&env, &expected_root));
     }
@@ -166,7 +236,10 @@ fn mixer_withdraw_and_double_spend_rejected() {
 
     // Deposit a commitment so root is non-zero
     let commitment = BytesN::from_array(&env, &[0x11; 32]);
-    env.as_contract(&mixer_id, || MixerContract::deposit(env.clone(), commitment)).unwrap();
+    env.as_contract(&mixer_id, || {
+        MixerContract::deposit(env.clone(), commitment)
+    })
+    .unwrap();
 
     // Set on-chain root to circuit public root
     assert!(pub_inputs_bin.len() >= 64);
@@ -191,8 +264,7 @@ fn mixer_withdraw_and_double_spend_rejected() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected error");
+        .expect_err("expected error");
     assert_eq!(err as u32, MixerError::NullifierUsed as u32);
 }
 
@@ -206,8 +278,10 @@ fn set_root_overrides_root() {
     let mixer_id: Address = register_mixer(&env, verifier_id);
 
     let root = BytesN::from_array(&env, &[0xAB; 32]);
-    env.as_contract(&mixer_id, || MixerContract::set_root(env.clone(), root.clone()))
-        .expect("set_root ok");
+    env.as_contract(&mixer_id, || {
+        MixerContract::set_root(env.clone(), root.clone())
+    })
+    .expect("set_root ok");
     let stored = env.as_contract(&mixer_id, || MixerContract::get_root(env.clone()));
     assert_eq!(stored, Some(root));
 }
@@ -230,7 +304,10 @@ fn withdraw_rejects_invalid_public_inputs() {
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
 
     let commitment = BytesN::from_array(&env, &[0x22; 32]);
-    env.as_contract(&mixer_id, || MixerContract::deposit(env.clone(), commitment)).unwrap();
+    env.as_contract(&mixer_id, || {
+        MixerContract::deposit(env.clone(), commitment)
+    })
+    .unwrap();
 
     assert!(pub_inputs_bin.len() >= 64);
     let mut root_arr = [0u8; 32];
@@ -249,8 +326,7 @@ fn withdraw_rejects_invalid_public_inputs() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected verification failure");
+        .expect_err("expected verification failure");
     assert_eq!(err as u32, MixerError::VerificationFailed as u32);
 
     let mut nf_arr = [0u8; 32];
@@ -280,7 +356,10 @@ fn withdraw_rejects_root_mismatch() {
 
     // Deposit one leaf to seed tree
     let commitment = BytesN::from_array(&env, &[0x33; 32]);
-    env.as_contract(&mixer_id, || MixerContract::deposit(env.clone(), commitment)).unwrap();
+    env.as_contract(&mixer_id, || {
+        MixerContract::deposit(env.clone(), commitment)
+    })
+    .unwrap();
 
     // Set an incorrect root (all zero)
     env.as_contract(&mixer_id, || {
@@ -296,21 +375,27 @@ fn withdraw_rejects_root_mismatch() {
         .as_contract(&mixer_id, || {
             MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
         })
-        .err()
-        .expect("expected root mismatch");
+        .expect_err("expected root mismatch");
     assert_eq!(err as u32, MixerError::RootMismatch as u32);
 
     let mut nf_arr = [0u8; 32];
     nf_arr.copy_from_slice(&pub_inputs_bin[32..64]);
     let nf = BytesN::from_array(&env, &nf_arr);
-    let spent = env.as_contract(&mixer_id, || MixerContract::is_nullifier_used(env.clone(), nf.clone()));
+    let spent = env.as_contract(&mixer_id, || {
+        MixerContract::is_nullifier_used(env.clone(), nf.clone())
+    });
     assert!(!spent, "nullifier should remain unused after root mismatch");
 }
 
-/// Measure deposit/withdraw budget using WASM contracts.
+/// Measure deposit/withdraw budget using release WASM contracts.
 #[cfg(feature = "wasm-cost")]
+#[allow(clippy::assertions_on_constants)]
 #[test]
 fn print_wasm_budget_for_deposit_and_withdraw() {
+    assert!(
+        !cfg!(debug_assertions),
+        "run wasm-cost budget tests with `--release --features wasm-cost`"
+    );
     let _guard = verify_lock().lock().unwrap();
     let env = Env::default();
     env.cost_estimate().budget().reset_unlimited();
@@ -320,26 +405,33 @@ fn print_wasm_budget_for_deposit_and_withdraw() {
     let proof_bin: &[u8] = include_bytes!("../../circuit/target/proof");
     let pub_inputs_bin: &[u8] = include_bytes!("../../circuit/target/public_inputs");
 
-    let (_, verifier_id) = register_wasm_verifier(&env, &vk_bytes);
-    let (mixer, _) = register_wasm_mixer(&env, verifier_id.clone());
+    let verifier_id: Address = register_wasm_verifier(&env, &vk_bytes);
+    let mixer_id: Address = register_wasm_mixer(&env, verifier_id.clone());
 
     env.cost_estimate().budget().reset_unlimited();
     let commitment = BytesN::from_array(&env, &[0x55; 32]);
-    mixer.deposit(&commitment);
+    let mut deposit_args: SorobanVec<Val> = SorobanVec::new(&env);
+    deposit_args.push_back(commitment.into_val(&env));
+    let _: u32 = wasm_call_ok(&env, &mixer_id, "deposit", deposit_args);
     println!("=== wasm deposit budget usage ===");
     env.cost_estimate().budget().print();
 
     assert!(pub_inputs_bin.len() >= 64);
     let mut root_arr = [0u8; 32];
     root_arr.copy_from_slice(&pub_inputs_bin[..32]);
-    mixer.set_root(&BytesN::from_array(&env, &root_arr));
+    let mut set_root_args: SorobanVec<Val> = SorobanVec::new(&env);
+    set_root_args.push_back(BytesN::from_array(&env, &root_arr).into_val(&env));
+    let _: () = wasm_call_ok(&env, &mixer_id, "set_root", set_root_args);
 
     assert_eq!(proof_bin.len(), PROOF_BYTES);
     let proof_bytes: Bytes = Bytes::from_slice(&env, proof_bin);
     let public_inputs: Bytes = Bytes::from_slice(&env, pub_inputs_bin);
 
     env.cost_estimate().budget().reset_unlimited();
-    mixer.withdraw(&public_inputs, &proof_bytes);
+    let mut withdraw_args: SorobanVec<Val> = SorobanVec::new(&env);
+    withdraw_args.push_back(public_inputs.into_val(&env));
+    withdraw_args.push_back(proof_bytes.into_val(&env));
+    let _: () = wasm_call_ok(&env, &mixer_id, "withdraw", withdraw_args);
     println!("=== wasm withdraw budget usage ===");
     env.cost_estimate().budget().print();
 }
@@ -353,12 +445,15 @@ fn deposit_rejects_duplicate_commitment() {
     let mixer_id: Address = register_mixer(&env, verifier_id);
 
     let cm = BytesN::from_array(&env, &[0x55; 32]);
-    env.as_contract(&mixer_id, || MixerContract::deposit(env.clone(), cm.clone()))
-        .expect("first deposit ok");
+    env.as_contract(&mixer_id, || {
+        MixerContract::deposit(env.clone(), cm.clone())
+    })
+    .expect("first deposit ok");
 
     let err = env
-        .as_contract(&mixer_id, || MixerContract::deposit(env.clone(), cm.clone()))
-        .err()
-        .expect("expected duplicate commitment error");
+        .as_contract(&mixer_id, || {
+            MixerContract::deposit(env.clone(), cm.clone())
+        })
+        .expect_err("expected duplicate commitment error");
     assert_eq!(err as u32, MixerError::CommitmentExists as u32);
 }
